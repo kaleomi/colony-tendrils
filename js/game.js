@@ -31,14 +31,16 @@
       Audio.setSound(this.save.sound !== false); Audio.setMusic(this.save.music !== false);
       this.fieldBg = R.paintFieldBg(11); this.menuBg = R.paintMenuBg(7);
       this.showcase = new Level({ maxPower: 200, cpuTurn: 0, cells: [
-        { type: T.GREEN, power: 60, x: 90, y: 182 }, { type: T.GREY, power: 40, x: 373, y: 182, kind: K.AMP },
-        { type: T.PURPLE, power: 90, x: 90, y: 308, kind: K.LEECH }, { type: T.RED, power: 50, x: 373, y: 308, kind: K.SHELL }].map(c => Object.assign({ kind: 0 }, c)), fences: [] });
+        { type: T.GREEN, power: 60, x: 90, y: 157 }, { type: T.GREY, power: 40, x: 373, y: 157, kind: K.AMP },
+        { type: T.PURPLE, power: 90, x: 90, y: 273, kind: K.LEECH }, { type: T.RED, power: 50, x: 373, y: 273, kind: K.SHELL },
+        { type: T.BLACK, power: 30, x: 90, y: 364 }].map(c => Object.assign({ kind: 0 }, c)), fences: [] });
       for (const c of this.showcase.cells) c.suspended = true;
       // home
       $('mCh1').onclick = () => { this.unlock(); this.openCampaign(1); };
       $('mCh2').onclick = () => { this.unlock(); this.openCampaign(2); };
       $('mEndless').onclick = () => { this.unlock(); this.openEndless(); };
       $('mEditor').onclick = () => { this.unlock(); this.openEditor(); };
+      $('mLobby').onclick = () => { this.unlock(); this.openLobby(); };
       $('mImport').onclick = () => { this.unlock(); this.showImport('home'); };
       $('mHelp').onclick = () => { this.unlock(); this.showHelp(false); };
       // campaign
@@ -65,7 +67,7 @@
       window.addEventListener('pointercancel', () => { this.selected = null; this.drag = null; CT.Editor.cancel(); });
       document.addEventListener('visibilitychange', () => { if (document.hidden && this.screen === 'play' && !this.paused) this.setPaused(true); });
       window.addEventListener('hashchange', () => this.checkHash());
-      CT.Editor.init(this);
+      CT.Editor.init(this); CT.Lobby.init(this);
       this.refreshToggles(); this.toHome(); this.checkHash();
     },
     unlock() { Audio.ensure(); },
@@ -77,7 +79,16 @@
         b.classList.toggle('off', !(s ? Audio.soundOn : Audio.musicOn));
       }
     },
-    show(layer) { for (const id of ['home', 'campaign', 'hud', 'editor']) $(id).classList.toggle('hidden', id !== layer); },
+    show(layer) {
+      for (const id of ['home', 'campaign', 'hud', 'editor', 'lobby']) $(id).classList.toggle('hidden', id !== layer);
+      stage.classList.toggle('lock', layer === 'hud' || layer === 'editor');
+    },
+    canLink() { let framed = true; try { framed = window.top !== window; } catch (e) { } return !framed && /^https?:/.test(location.protocol); },
+    copyText(text, btn, label) {
+      const done = () => { btn.textContent = '已复制'; setTimeout(() => { btn.textContent = label; }, 1600); };
+      const fail = () => { btn.textContent = '复制失败，请手动复制'; };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fail); else fail();
+    },
 
     // ------------------------------------------------------------ home
     toHome() {
@@ -91,9 +102,13 @@
         : this.save.endlessBest ? `最高通过 ${this.save.endlessBest} 层` : '还没有记录';
       const ed = this.save.editor;
       $('pEditor').textContent = ed && ed.cells && ed.cells.length ? `草稿：${ed.name || '未命名'} · ${ed.cells.length} 个微生物` : '从示例关卡开始';
+      CT.Lobby.homeCount($('pLobby'));
     },
     checkHash() {
       const h = decodeURIComponent(location.hash || '');
+      const m = /^#L\.([a-z0-9]{6,12})$/.exec(h);
+      if (m) return this.showLobbyLevel(m[1]);
+      if (h === '#admin') return this.showAdmin();
       if (!h.startsWith('#' + Codec.PREFIX)) return;
       try { const def = Codec.decode(h); this.showShared(def); } catch (e) { this.showImport('home', h.slice(1), e.message); }
     },
@@ -203,11 +218,50 @@
       $('oNew').focus({ preventScroll: true });
     },
 
+    // ------------------------------------------------------------ lobby
+    openLobby(sort) {
+      clearTimeout(this.endTimer); this.lv = null; this.screen = 'lobby';
+      this.hideOverlay(); this.show('lobby'); CT.Lobby.open(sort);
+    },
+    async showLobbyLevel(id) {
+      this.showOverlay(`<div class="veil"><div class="card"><div class="spin"></div><div class="note">正在载入大厅关卡…</div></div></div>`);
+      try {
+        const { level: it } = await CT.LobbyAPI.get(id);
+        const def = Codec.decode(it.code);
+        const rate = it.plays ? Math.round(it.wins / it.plays * 100) + '%' : '—';
+        this.showOverlay(`<div class="veil"><div class="card" style="width:400px">
+          <h2>大厅关卡</h2>
+          <div class="lvhead"><canvas id="oThumb"></canvas><div class="sub"><b>${CT.esc(it.name)}</b><span>作者 ${CT.esc(it.author)}</span><span>${it.cells} 个微生物 · 上限 ${it.maxPower}</span><span>挑战 ${it.plays} 次 · 胜率 ${rate} · 点赞 ${it.likes}</span></div></div>
+          <div class="row"><button class="btn primary" id="oPlay" type="button">立即挑战</button><button class="btn" id="oLobby" type="button">逛逛大厅</button></div></div></div>`);
+        CT.drawThumb($('oThumb'), def);
+        $('oPlay').onclick = () => { this.unlock(); CT.Lobby.play(it); };
+        $('oLobby').onclick = () => this.openLobby('new');
+        $('oPlay').focus({ preventScroll: true });
+      } catch (e) {
+        this.showOverlay(`<div class="veil"><div class="card"><h2>打不开这个关卡</h2><div class="note">${CT.esc(e.message)}</div>
+          <div class="row"><button class="btn primary" id="oLobby" type="button">去大厅看看</button><button class="btn" id="oBack" type="button">关闭</button></div></div></div>`);
+        $('oLobby').onclick = () => this.openLobby('new');
+        $('oBack').onclick = () => this.hideOverlay();
+      }
+    },
+    showAdmin() {
+      this.showOverlay(`<div class="veil"><div class="card">
+        <h2>管理员</h2>
+        <div class="note">填入部署时设置的 ADMIN_KEY，大厅里每个关卡都会出现删除按钮。只保存在这台设备上。</div>
+        <div class="field"><input id="oKey" type="password" autocomplete="off" placeholder="ADMIN_KEY"></div>
+        <div class="row"><button class="btn primary" id="oSave" type="button">保存</button><button class="btn" id="oClear" type="button">清除</button><button class="btn" id="oBack" type="button">关闭</button></div></div></div>`);
+      $('oKey').value = this.save.adminKey || '';
+      $('oSave').onclick = () => { this.save.adminKey = $('oKey').value.trim() || null; this.persist(); this.openLobby('new'); };
+      $('oClear').onclick = () => { this.save.adminKey = null; this.persist(); this.hideOverlay(); };
+      $('oBack').onclick = () => this.hideOverlay();
+    },
+
     // ------------------------------------------------------------ editor / custom levels
     openEditor(def) { clearTimeout(this.endTimer); this.lv = null; this.screen = 'editor'; this.hideOverlay(); this.show('editor'); CT.Editor.open(def); },
-    startCustom(def, from) {
-      const name = def.name ? `「${def.name.replace(/[<>&]/g, '')}」` : '自定义关卡';
-      this.startLevel({ mode: 'custom', from, index: 0, def: Object.assign({}, def, { hint: null }), label: name });
+    startCustom(def, from, lobby) {
+      const name = def.name ? `「${CT.esc(def.name)}」` : '自定义关卡';
+      const label = lobby ? `大厅 · ${name}<span style="color:#8ea79c"> by ${CT.esc(lobby.author)}</span>` : name;
+      this.startLevel({ mode: 'custom', from, lobby: lobby || null, index: 0, def: Object.assign({}, def, { hint: null }), label });
     },
     showShared(def) {
       this.pendingShared = def;
@@ -260,7 +314,7 @@
       this.show('hud'); this.hideOverlay();
       $('hLabel').innerHTML = ctx.label; $('hMax').textContent = String(this.lv.maxPower); $('hTime').textContent = '0';
       $('bPause').innerHTML = ICON.pause;
-      $('bMenuTxt').textContent = ctx.mode === 'custom' ? (ctx.from === 'editor' ? '编辑' : '返回') : '菜单';
+      $('bMenuTxt').textContent = ctx.mode === 'custom' ? (ctx.from === 'editor' ? '编辑' : ctx.from === 'lobby' ? '大厅' : '返回') : '菜单';
       $('bRestart').classList.toggle('hidden', ctx.mode === 'endless');
       $('tutors').innerHTML = ''; $('tip').classList.add('hidden');
       this.renderChips();
@@ -277,6 +331,7 @@
       if (!c) return this.toHome();
       if (c.mode === 'ch1' || c.mode === 'ch2') this.openCampaign(c.chapter);
       else if (c.mode === 'custom' && c.from === 'editor') this.openEditor();
+      else if (c.mode === 'custom' && c.from === 'lobby') this.openLobby();
       else this.toHome();
     },
     setStatus(text, color) {
@@ -316,6 +371,9 @@
       } else if (c.mode === 'endless') {
         if (win) { this.run.totalTime += time; this.save.endlessBest = Math.max(this.save.endlessBest, this.run.depth); }
         else this.save.run = null;
+      } else if (c.mode === 'custom') {
+        if (win && c.from === 'editor') this.save.verified = CT.Editor.layoutKey(c.def);
+        if (c.from === 'lobby' && c.lobby) this.lobbyResult = CT.Lobby.recordPlay(c.lobby.id, win);
       }
       this.persist();
       if (win) Audio.S.passed(); else Audio.S.failed();
@@ -336,13 +394,31 @@
       const best = campaign ? this.save[CHAPTERS[c.chapter].bestKey][c.index + 1] : null;
       const where = campaign ? `第 <em>${c.index + 1}</em> 关${c.def.name ? ' · ' + c.def.name : ''}` : c.label.replace(/<[^>]+>/g, '');
       const next = campaign && win ? `<button class="btn primary" id="oNext" type="button">下一关</button>` : '';
-      const back = c.mode === 'custom' ? (c.from === 'editor' ? '返回编辑器' : '返回首页') : '关卡选择';
+      const back = c.mode === 'custom' ? (c.from === 'editor' ? '返回编辑器' : c.from === 'lobby' ? '返回大厅' : '返回首页') : '关卡选择';
+      const lobby = c.mode === 'custom' && c.from === 'lobby' && c.lobby;
+      const liked = lobby && (this.save.liked || []).includes(lobby.id);
+      const verifyNote = c.mode === 'custom' && c.from === 'editor' && win ? '<div class="note" style="color:var(--ok)">已通关验证，现在可以在编辑器里点「上传」放进大厅了</div>' : '';
+      const lobbyRow = lobby ? `<div class="row"><button class="ibtn like${liked ? ' on' : ''}" id="oLike" type="button"><svg viewBox="0 0 12 12"><path d="M6 10.2 2.2 6.5a2.3 2.3 0 0 1 3.3-3.2L6 3.8l.5-.5a2.3 2.3 0 0 1 3.3 3.2z"/></svg>${liked ? '已点赞' : '点赞这个关卡'}</button>${this.canLink() ? '<button class="ibtn" id="oLink" type="button">复制关卡链接</button>' : ''}<button class="ibtn" id="oReport" type="button">举报</button></div><div class="note" id="oStats"></div>` : '';
       this.showOverlay(`<div class="veil"><div class="card">
         <h2 style="color:${win ? 'var(--ok)' : 'var(--alert)'}">${win ? '区域已占领' : '全军覆没'}</h2>
         <div class="sub">${where} &nbsp;·&nbsp; 时间 <em>${time}</em> 秒${win && best ? ` &nbsp;·&nbsp; 最快 <em>${best}</em>` : ''}</div>
         ${campaign ? `<div class="sub">${first ? `首次占领 +<em>${gained}</em> 分 &nbsp;·&nbsp; ` : ''}总积分 <em>${this.save.score}</em></div>` : ''}
         <div class="row">${next}<button class="btn ${next ? '' : 'primary'}" id="oRetry" type="button">${win ? '重玩' : '再来一次'}</button><button class="btn" id="oMenu" type="button">${back}</button></div>
-        ${c.mode === 'custom' && c.from === 'shared' ? '<button class="btn small" id="oEdit" type="button">在编辑器中打开</button>' : ''}</div></div>`);
+        ${c.mode === 'custom' && c.from === 'shared' ? '<button class="btn small" id="oEdit" type="button">在编辑器中打开</button>' : ''}${verifyNote}${lobbyRow}</div></div>`);
+      if (lobby) {
+        const stats = $('oStats');
+        Promise.resolve(this.lobbyResult).then(r => { if (r && stats.isConnected) stats.textContent = `这一关已被挑战 ${r.plays} 次，胜率 ${Math.round(r.wins / Math.max(1, r.plays) * 100)}%`; });
+        $('oLike').onclick = async () => {
+          const b = $('oLike'); if (b.classList.contains('on')) return;
+          try { const r = await CT.Lobby.like({ id: lobby.id, likes: lobby.likes }, null); b.classList.add('on'); b.lastChild.textContent = `已点赞 · ${r.likes}`; }
+          catch (e) { b.lastChild.textContent = '点赞失败'; }
+        };
+        if ($('oLink')) $('oLink').onclick = () => this.copyText(`${location.origin}${location.pathname}#L.${lobby.id}`, $('oLink'), '复制关卡链接');
+        $('oReport').onclick = async () => {
+          const b = $('oReport'); if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = '确认举报？'; return; }
+          try { await CT.Lobby.report(lobby.id); b.textContent = '已举报'; b.disabled = true; } catch (e) { b.textContent = '举报失败'; }
+        };
+      }
       if ($('oNext')) $('oNext').onclick = () => this.startCampaign(c.chapter, c.index + 1);
       $('oRetry').onclick = () => this.startLevel(c);
       $('oMenu').onclick = () => this.leaveLevel();
@@ -393,7 +469,7 @@
       if (e.key === 'Escape') {
         if (!$('overlay').classList.contains('hidden') && this.screen !== 'play' && this.screen !== 'end') { this.hideOverlay(); return; }
         if (this.screen === 'play' || this.screen === 'end') this.leaveLevel();
-        else if (this.screen === 'campaign') this.toHome();
+        else if (this.screen === 'campaign' || this.screen === 'lobby') this.toHome();
       }
       if (this.screen === 'play') {
         if (e.key === 'p' || e.key === 'P' || e.key === ' ') { e.preventDefault(); this.setPaused(!this.paused); }
@@ -497,6 +573,7 @@
     R.begin();
     const ctx = R.ctx;
     if (game.screen === 'home') return renderHome(t);
+    if (game.screen === 'lobby') { R.ctx.drawImage(game.menuBg, 0, 0, W, H); return; }
     if (game.screen === 'campaign') return renderCampaign(t);
     if (game.screen === 'editor') return CT.Editor.render(t);
     ctx.drawImage(game.fieldBg, 0, 0, W, H);

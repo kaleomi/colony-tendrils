@@ -63,6 +63,7 @@
         this.persist(); this.game.startCustom(clone(this.def), 'editor');
       };
       $('edBack').onclick = () => { this.persist(); this.game.toHome(); };
+      $('edUpload').onclick = () => this.uploadDialog();
     },
     open(def) {
       const src = def || this.game.save.editor || sample();
@@ -211,6 +212,41 @@
     onKey(e) {
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); this.deleteSel(); }
       else if (e.key === 'Escape') { if (!$('overlay').classList.contains('hidden')) this.game.hideOverlay(); else { this.sel = null; this.refresh(); } }
+    },
+    // ---------------------------------------------------------------- lobby upload
+    layoutKey(def) { return Codec.encode(Object.assign({}, def, { name: '' })); },
+    uploadDialog() {
+      const msg = Codec.validate(this.def, false);
+      if (msg) return this.msg(msg);
+      if (this.game.save.verified !== this.layoutKey(this.def)) return this.msg('上传前先点「试玩」并打赢一次，确保这一关能通关');
+      const g = this.game;
+      g.showOverlay(`<div class="veil"><div class="card" style="width:360px">
+        <h2>上传到大厅</h2>
+        <div class="note">上传后所有人都能在关卡大厅里看到并挑战这一关</div>
+        <label class="field">关卡名<input id="oName" type="text" maxlength="24" autocomplete="off"></label>
+        <label class="field">作者（显示给其他玩家）<input id="oAuthor" type="text" maxlength="16" autocomplete="off" placeholder="匿名"></label>
+        <div class="err" id="oErr"></div>
+        <div class="row"><button class="btn primary" id="oUp" type="button">上传</button><button class="btn" id="oBack" type="button">取消</button></div></div></div>`);
+      $('oName').value = this.def.name || ''; $('oAuthor').value = g.save.author || '';
+      $('oName').focus({ preventScroll: true });
+      $('oBack').onclick = () => g.hideOverlay();
+      $('oUp').onclick = async () => {
+        const name = $('oName').value.trim(), author = $('oAuthor').value.trim();
+        if (!name) { $('oErr').textContent = '给关卡起个名字吧'; return; }
+        const btn = $('oUp'); btn.disabled = true; btn.textContent = '上传中…'; $('oErr').textContent = '';
+        try {
+          const r = await CT.Lobby.upload(this.def, name, author);
+          this.def.name = name; $('edName').value = name; g.save.author = author; this.persist();
+          const link = `${location.origin}${location.pathname}#L.${r.id}`;
+          g.showOverlay(`<div class="veil"><div class="card" style="width:360px">
+            <h2 style="color:var(--ok)">${r.duplicate ? '大厅里已经有了' : '已上传到大厅'}</h2>
+            <div class="note">${r.duplicate ? `一模一样的关卡已经在大厅里了（「${CT.esc(r.name)}」）` : `「${CT.esc(name)}」现在所有人都能玩了`}<br>关卡 ID：<span style="font-family:var(--font-data);color:var(--signal)">${r.id}</span></div>
+            <div class="row"><button class="btn primary" id="oGo" type="button">去大厅看看</button>${g.canLink() ? '<button class="btn" id="oLink" type="button">复制关卡链接</button>' : ''}<button class="btn" id="oBack" type="button">关闭</button></div></div></div>`);
+          $('oGo').onclick = () => g.openLobby(r.duplicate ? 'new' : 'mine');
+          if ($('oLink')) $('oLink').onclick = () => g.copyText(link, $('oLink'), '复制关卡链接');
+          $('oBack').onclick = () => g.hideOverlay();
+        } catch (e) { btn.disabled = false; btn.textContent = '上传'; $('oErr').textContent = e.message; }
+      };
     },
     // ---------------------------------------------------------------- share
     share() {

@@ -25,6 +25,7 @@
           <button class="mode" id="mCh2" type="button"><span class="tag">新</span><b>第二章 · 异变</b><i>增幅器、甲壳、毒囊、汲取者、<br>游走微生物与移动之墙</i><em id="pCh2">已占领 0 / 10</em></button>
           <button class="mode" id="mEndless" type="button"><span class="tag">新</span><b>无尽进化</b><i>随机生成的培养皿，<br>每过一层三选一突变</i><em id="pEndless">还没有记录</em></button>
           <button class="mode" id="mEditor" type="button"><span class="tag">新</span><b>关卡编辑器</b><i>摆放微生物和墙，<br>生成分享码发给朋友</i><em id="pEditor">打开上次的草稿</em></button>
+          <button class="mode wide" id="mLobby" type="button"><span class="tag">新</span><b>关卡大厅</b><i>挑战其他玩家设计的关卡，也可以把你的作品上传给大家玩</i><em id="pLobby">正在连接…</em></button>
         </div>
         <div class="homeRow">
           <button class="btn small" id="mImport" type="button">输入分享码</button>
@@ -46,6 +47,19 @@
           <button class="btn primary" id="btnContinue" type="button">开始</button>
         </div>
         <div class="tools"><button class="ibtn" data-toggle="sound" type="button" title="音效"></button><button class="ibtn" data-toggle="music" type="button" title="音乐"></button></div>
+      </div>
+
+      <!-- level lobby -->
+      <div id="lobby" class="layer hidden">
+        <button class="ibtn back" id="lBack" type="button"><svg viewBox="0 0 12 12"><path d="M7.5 2 3.5 6l4 4"/></svg>返回</button>
+        <div class="head"><h1>关卡大厅</h1></div>
+        <div class="tools"><button class="ibtn primary" id="lCreate" type="button">设计并上传</button></div>
+        <div class="lBar">
+          <div class="tabs" id="lTabs"><button class="tab" data-s="new" type="button">最新</button><button class="tab" data-s="hot" type="button">最热</button><button class="tab" data-s="top" type="button">好评</button><button class="tab" data-s="mine" type="button">我的上传</button></div>
+          <input id="lQ" type="search" maxlength="24" placeholder="搜索关卡名或作者" autocomplete="off">
+        </div>
+        <div id="lList"></div>
+        <div id="lState" class="hidden"></div>
       </div>
 
       <!-- in-game HUD -->
@@ -97,6 +111,7 @@
           <span class="grow"></span>
           <button class="ibtn" id="edImport" type="button">导入</button>
           <button class="ibtn" id="edShare" type="button">分享码</button>
+          <button class="ibtn" id="edUpload" type="button" title="上传到关卡大厅（需要先试玩通关）">上传</button>
           <button class="ibtn primary" id="edTest" type="button"><svg viewBox="0 0 12 12"><path d="M4 2.5l5 3.5-5 3.5z"/></svg>试玩</button>
         </div>
       </div>
@@ -112,6 +127,7 @@
 <script src="js/codec.js"></script>
 <script src="js/endless.js"></script>
 <script src="js/editor.js"></script>
+<script src="js/lobby.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>
