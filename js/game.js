@@ -365,13 +365,16 @@
       const back = c.mode === 'custom' ? (c.from === 'editor' ? '返回编辑器' : c.from === 'lobby' ? '返回大厅' : '返回首页') : '关卡选择';
       const lobby = c.mode === 'custom' && c.from === 'lobby' && c.lobby;
       const liked = lobby && (this.save.liked || []).includes(lobby.id);
-      const verifyNote = c.mode === 'custom' && c.from === 'editor' && win ? '<div class="note" style="color:var(--ok)">已通关验证，现在可以在编辑器里点「上传」放进大厅了</div>' : '';
+      this.endArgs = [win, time, gained, first];
+      const canUp = c.mode === 'custom' && c.from === 'editor' && win, up = canUp && CT.Editor.uploaded();
+      const upBtn = canUp ? `<button class="btn ${up ? '' : 'primary'}" id="oUpload" type="button"${up ? ' disabled' : ''}>${up ? '已上传' : '上传到大厅'}</button>` : '';
+      const verifyNote = canUp ? `<div class="note" style="color:var(--ok)">${up ? `已在大厅里 · 关卡 ID <span style="font-family:var(--font-data);color:var(--signal)">${up.id}</span>` : '已通关验证，可以上传到大厅了'}</div>` : '';
       const lobbyRow = lobby ? `<div class="row"><button class="ibtn like${liked ? ' on' : ''}" id="oLike" type="button"><svg viewBox="0 0 12 12"><path d="M6 10.2 2.2 6.5a2.3 2.3 0 0 1 3.3-3.2L6 3.8l.5-.5a2.3 2.3 0 0 1 3.3 3.2z"/></svg>${liked ? '已点赞' : '点赞这个关卡'}</button>${this.canLink() ? '<button class="ibtn" id="oLink" type="button">复制关卡链接</button>' : ''}<button class="ibtn" id="oReport" type="button">举报</button></div><div class="note" id="oStats"></div>` : '';
-      this.showOverlay(`<div class="veil"><div class="card">
+      this.showOverlay(`<div class="veil"><div class="card"${canUp ? ' style="width:400px"' : ''}>
         <h2 style="color:${win ? 'var(--ok)' : 'var(--alert)'}">${win ? '区域已占领' : '全军覆没'}</h2>
         <div class="sub">${where} &nbsp;·&nbsp; 时间 <em>${time}</em> 秒${win && best ? ` &nbsp;·&nbsp; 最快 <em>${best}</em>` : ''}</div>
         ${campaign ? `<div class="sub">${first ? `首次占领 +<em>${gained}</em> 分 &nbsp;·&nbsp; ` : ''}总积分 <em>${this.save.score}</em></div>` : ''}
-        <div class="row">${next}<button class="btn ${next ? '' : 'primary'}" id="oRetry" type="button">${win ? '重玩' : '再来一次'}</button><button class="btn" id="oMenu" type="button">${back}</button></div>
+        <div class="row">${next}${upBtn}<button class="btn ${next || canUp ? '' : 'primary'}" id="oRetry" type="button">${win ? '重玩' : '再来一次'}</button><button class="btn" id="oMenu" type="button">${back}</button></div>
         ${verifyNote}${lobbyRow}</div></div>`);
       if (lobby) {
         const stats = $('oStats');
@@ -388,9 +391,10 @@
         };
       }
       if ($('oNext')) $('oNext').onclick = () => this.startCampaign(c.chapter, c.index + 1);
+      if (canUp && !up) $('oUpload').onclick = () => CT.Editor.uploadDialog(() => this.showEnd(...this.endArgs));
       $('oRetry').onclick = () => this.startLevel(c);
       $('oMenu').onclick = () => this.leaveLevel();
-      ($('oNext') || $('oRetry')).focus({ preventScroll: true });
+      ($('oNext') || (canUp && !up && $('oUpload')) || $('oRetry')).focus({ preventScroll: true });
     },
     showFinal(ch) {
       this.showOverlay(`<div class="veil"><div class="card" style="width:350px">

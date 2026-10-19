@@ -213,11 +213,12 @@
     },
     // ---------------------------------------------------------------- lobby upload
     layoutKey(def) { return Codec.encode(Object.assign({}, def, { name: '' })); },
-    uploadDialog() {
+    uploaded() { const u = this.lastUpload; return u && this.def && u.key === this.layoutKey(this.def) ? u : null; },
+    uploadDialog(onClose) {
       const msg = Codec.validate(this.def, false);
       if (msg) return this.msg(msg);
       if (this.game.save.verified !== this.layoutKey(this.def)) return this.msg('上传前先点「试玩」并打赢一次，确保这一关能通关');
-      const g = this.game;
+      const g = this.game, close = onClose || (() => g.hideOverlay());
       g.showOverlay(`<div class="veil"><div class="card" style="width:360px">
         <h2>上传到大厅</h2>
         <div class="note">上传后所有人都能在关卡大厅里看到并挑战这一关</div>
@@ -227,7 +228,7 @@
         <div class="row"><button class="btn primary" id="oUp" type="button">上传</button><button class="btn" id="oBack" type="button">取消</button></div></div></div>`);
       $('oName').value = this.def.name || ''; $('oAuthor').value = g.save.author || '';
       $('oName').focus({ preventScroll: true });
-      $('oBack').onclick = () => g.hideOverlay();
+      $('oBack').onclick = close;
       $('oUp').onclick = async () => {
         const name = $('oName').value.trim(), author = $('oAuthor').value.trim();
         if (!name) { $('oErr').textContent = '给关卡起个名字吧'; return; }
@@ -235,6 +236,7 @@
         try {
           const r = await CT.Lobby.upload(this.def, name, author);
           this.def.name = name; $('edName').value = name; g.save.author = author; this.persist();
+          this.lastUpload = { key: this.layoutKey(this.def), id: r.id };
           const link = `${location.origin}${location.pathname}#L.${r.id}`;
           g.showOverlay(`<div class="veil"><div class="card" style="width:360px">
             <h2 style="color:var(--ok)">${r.duplicate ? '大厅里已经有了' : '已上传到大厅'}</h2>
@@ -242,7 +244,7 @@
             <div class="row"><button class="btn primary" id="oGo" type="button">去大厅看看</button>${g.canLink() ? '<button class="btn" id="oLink" type="button">复制关卡链接</button>' : ''}<button class="btn" id="oBack" type="button">关闭</button></div></div></div>`);
           $('oGo').onclick = () => g.openLobby(r.duplicate ? 'new' : 'mine');
           if ($('oLink')) $('oLink').onclick = () => g.copyText(link, $('oLink'), '复制关卡链接');
-          $('oBack').onclick = () => g.hideOverlay();
+          $('oBack').onclick = close;
         } catch (e) { btn.disabled = false; btn.textContent = '上传'; $('oErr').textContent = e.message; }
       };
     },
