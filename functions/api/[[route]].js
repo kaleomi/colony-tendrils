@@ -26,21 +26,21 @@ const fail = (status, error) => json({ error }, status);
 const row = r => ({ id: r.id, code: r.code, name: r.name, author: r.author, cells: r.cells, fences: r.fences, maxPower: r.max_power, plays: r.plays, wins: r.wins, likes: r.likes, created: r.created });
 const clean = (s, max) => String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, max);
 
-// ---------------------------------------------------------------- share-code decoding (mirror of js/codec.js)
+// ---------------------------------------------------------------- level-data decoding (mirror of js/codec.js)
 const unzig = n => (n >>> 1) ^ -(n & 1);
 function decode(text) {
   let s = String(text || '').trim();
-  if (!s.startsWith(PREFIX)) throw new Error('这不是有效的分享码');
+  if (!s.startsWith(PREFIX)) throw new Error('这不是有效的关卡数据');
   s = s.slice(PREFIX.length);
-  if (!/^[A-Za-z0-9_-]+$/.test(s)) throw new Error('分享码里有无法识别的字符');
+  if (!/^[A-Za-z0-9_-]+$/.test(s)) throw new Error('关卡数据里有无法识别的字符');
   const b64 = s.replace(/-/g, '+').replace(/_/g, '/');
   let bin;
-  try { bin = atob(b64 + '==='.slice((b64.length + 3) % 4)); } catch (e) { throw new Error('分享码里有无法识别的字符'); }
+  try { bin = atob(b64 + '==='.slice((b64.length + 3) % 4)); } catch (e) { throw new Error('关卡数据里有无法识别的字符'); }
   const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   let p = 0;
   const rd = () => {
     let n = 0, sh = 0, b;
-    do { if (p >= bytes.length) throw new Error('分享码不完整'); b = bytes[p++]; n |= (b & 0x7f) << sh; sh += 7; } while (b & 0x80 && sh < 35);
+    do { if (p >= bytes.length) throw new Error('关卡数据不完整'); b = bytes[p++]; n |= (b & 0x7f) << sh; sh += 7; } while (b & 0x80 && sh < 35);
     return n >>> 0;
   };
   const maxPower = rd(), cpuTurn = rd(), nc = rd(), nf = rd();
@@ -48,10 +48,10 @@ function decode(text) {
   const cells = [], fences = [];
   for (let i = 0; i < nc; i++) cells.push({ type: rd(), power: rd(), x: rd(), y: rd(), kind: rd(), mx: unzig(rd()), my: unzig(rd()), period: rd() * 10 });
   for (let i = 0; i < nf; i++) fences.push({ x1: rd(), y1: rd(), x2: rd(), y2: rd(), mx: unzig(rd()), my: unzig(rd()), period: rd() * 10 });
-  const nl = rd(); if (p + nl > bytes.length) throw new Error('分享码不完整');
+  const nl = rd(); if (p + nl > bytes.length) throw new Error('关卡数据不完整');
   const name = new TextDecoder().decode(bytes.slice(p, p + nl)); p += nl;
   let sum = 0; for (let i = 0; i < p; i++) sum = (sum * 31 + bytes[i]) % 65521;
-  if (rd() !== sum) throw new Error('分享码校验失败');
+  if (rd() !== sum) throw new Error('关卡数据校验失败');
   if (!(maxPower >= 10 && maxPower <= 999)) throw new Error('能量上限超出范围');
   for (const c of cells) if (!(c.type >= 1 && c.type <= 5) || c.kind > 4 || c.x > 640 || c.y > 480 || c.power > 999) throw new Error('有无效的微生物');
   for (const f of fences) if ([f.x1, f.y1, f.x2, f.y2].some(v => v > 700)) throw new Error('有无效的墙');

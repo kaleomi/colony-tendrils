@@ -41,7 +41,6 @@
       $('mEndless').onclick = () => { this.unlock(); this.openEndless(); };
       $('mEditor').onclick = () => { this.unlock(); this.openEditor(); };
       $('mLobby').onclick = () => { this.unlock(); this.openLobby(); };
-      $('mImport').onclick = () => { this.unlock(); this.showImport('home'); };
       $('mHelp').onclick = () => { this.unlock(); this.showHelp(false); };
       // campaign
       $('cBack').onclick = () => this.toHome();
@@ -109,8 +108,6 @@
       const m = /^#L\.([a-z0-9]{6,12})$/.exec(h);
       if (m) return this.showLobbyLevel(m[1]);
       if (h === '#admin') return this.showAdmin();
-      if (!h.startsWith('#' + Codec.PREFIX)) return;
-      try { const def = Codec.decode(h); this.showShared(def); } catch (e) { this.showImport('home', h.slice(1), e.message); }
     },
 
     // ------------------------------------------------------------ campaign
@@ -263,35 +260,6 @@
       const label = lobby ? `大厅 · ${name}<span style="color:#8ea79c"> by ${CT.esc(lobby.author)}</span>` : name;
       this.startLevel({ mode: 'custom', from, lobby: lobby || null, index: 0, def: Object.assign({}, def, { hint: null }), label });
     },
-    showShared(def) {
-      this.pendingShared = def;
-      const n = def.cells.length, w = def.fences.length;
-      const nm = (def.name || '').replace(/[<>&]/g, '');
-      this.showOverlay(`<div class="veil"><div class="card">
-        <h2>朋友分享的关卡</h2>
-        <div class="sub">${nm ? `「<em>${nm}</em>」 · ` : ''}${n} 个微生物 · ${w} 面墙 · 上限 <em>${def.maxPower}</em></div>
-        <div class="row"><button class="btn primary" id="oPlay" type="button">立即挑战</button><button class="btn" id="oEdit" type="button">在编辑器中打开</button></div>
-        <button class="btn small" id="oBack" type="button">取消</button></div></div>`);
-      $('oPlay').onclick = () => { this.unlock(); this.startCustom(def, 'shared'); };
-      $('oEdit').onclick = () => { this.unlock(); this.openEditor(def); };
-      $('oBack').onclick = () => { this.hideOverlay(); if (this.screen !== 'editor') this.toHome(); };
-      $('oPlay').focus({ preventScroll: true });
-    },
-    showImport(from, value, err) {
-      this.showOverlay(`<div class="veil"><div class="card" style="width:360px">
-        <h2>输入分享码</h2>
-        <div class="note">把朋友发来的分享码（CT1. 开头）或分享链接粘贴到下面</div>
-        <textarea id="oCode" spellcheck="false" placeholder="CT1.xxxxxxxx"></textarea>
-        <div class="err" id="oErr"></div>
-        <div class="row"><button class="btn primary" id="oPlay" type="button">载入</button><button class="btn" id="oBack" type="button">取消</button></div></div></div>`);
-      const ta = $('oCode'); if (value) ta.value = value; if (err) $('oErr').textContent = err;
-      ta.focus({ preventScroll: true });
-      $('oPlay').onclick = () => {
-        try { const def = Codec.decode(ta.value); this.showShared(def); }
-        catch (e) { $('oErr').textContent = e.message; }
-      };
-      $('oBack').onclick = () => { this.hideOverlay(); if (from === 'editor') CT.Editor.refresh(); };
-    },
 
     // ------------------------------------------------------------ playing a level
     startLevel(ctx) {
@@ -404,7 +372,7 @@
         <div class="sub">${where} &nbsp;·&nbsp; 时间 <em>${time}</em> 秒${win && best ? ` &nbsp;·&nbsp; 最快 <em>${best}</em>` : ''}</div>
         ${campaign ? `<div class="sub">${first ? `首次占领 +<em>${gained}</em> 分 &nbsp;·&nbsp; ` : ''}总积分 <em>${this.save.score}</em></div>` : ''}
         <div class="row">${next}<button class="btn ${next ? '' : 'primary'}" id="oRetry" type="button">${win ? '重玩' : '再来一次'}</button><button class="btn" id="oMenu" type="button">${back}</button></div>
-        ${c.mode === 'custom' && c.from === 'shared' ? '<button class="btn small" id="oEdit" type="button">在编辑器中打开</button>' : ''}${verifyNote}${lobbyRow}</div></div>`);
+        ${verifyNote}${lobbyRow}</div></div>`);
       if (lobby) {
         const stats = $('oStats');
         Promise.resolve(this.lobbyResult).then(r => { if (r && stats.isConnected) stats.textContent = `这一关已被挑战 ${r.plays} 次，胜率 ${Math.round(r.wins / Math.max(1, r.plays) * 100)}%`; });
@@ -422,14 +390,13 @@
       if ($('oNext')) $('oNext').onclick = () => this.startCampaign(c.chapter, c.index + 1);
       $('oRetry').onclick = () => this.startLevel(c);
       $('oMenu').onclick = () => this.leaveLevel();
-      if ($('oEdit')) $('oEdit').onclick = () => this.openEditor(c.def);
       ($('oNext') || $('oRetry')).focus({ preventScroll: true });
     },
     showFinal(ch) {
       this.showOverlay(`<div class="veil"><div class="card" style="width:350px">
         <h2 style="color:var(--ok)">${ch === 1 ? '培养皿已全部占领' : '异变已被平息'}</h2>
         <div class="sub">${ch === 1 ? '20' : '10'} 个区域全部拿下 &nbsp;·&nbsp; 总积分 <em>${this.save.score}</em></div>
-        <div class="note">${ch === 1 ? '原作：Lumarama《Tentacle Wars: The Purple Menace》(2011)<br>接下来试试第二章、无尽进化，或者自己做关卡' : '还没过瘾的话，去无尽进化里看看能走多深'}</div>
+        <div class="note">${ch === 1 ? '接下来试试第二章、无尽进化，<br>或者去关卡大厅挑战其他玩家的关卡' : '还没过瘾的话，去无尽进化里看看能走多深'}</div>
         <div class="row"><button class="btn primary" id="oMenu" type="button">${ch === 1 ? '去第二章' : '无尽进化'}</button><button class="btn" id="oHome" type="button">返回首页</button></div></div></div>`);
       $('oMenu').onclick = () => ch === 1 ? this.openCampaign(2) : this.openEndless();
       $('oHome').onclick = () => this.toHome();

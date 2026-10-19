@@ -55,8 +55,6 @@
         b.dataset.armed = '1'; b.textContent = '确认清空？';
         setTimeout(() => { delete b.dataset.armed; b.textContent = '清空'; }, 2500);
       };
-      $('edImport').onclick = () => this.game.showImport('editor');
-      $('edShare').onclick = () => this.share();
       $('edTest').onclick = () => {
         const msg = Codec.validate(this.def, false);
         if (msg) return this.msg(msg);
@@ -247,30 +245,6 @@
           $('oBack').onclick = () => g.hideOverlay();
         } catch (e) { btn.disabled = false; btn.textContent = '上传'; $('oErr').textContent = e.message; }
       };
-    },
-    // ---------------------------------------------------------------- share
-    share() {
-      const msg = Codec.validate(this.def, false);
-      if (msg) return this.msg(msg);
-      const code = Codec.encode(this.def);
-      const framed = (() => { try { return window.top !== window; } catch (e) { return true; } })();
-      const canLink = !framed && /^https?:/.test(location.protocol);
-      this.game.showOverlay(`<div class="veil"><div class="card" style="width:390px">
-        <h2>分享码</h2>
-        <div class="note">把这串分享码发给朋友，对方在首页点「输入分享码」粘贴就能挑战${canLink ? '；也可以直接发链接' : ''}</div>
-        <textarea id="oCode" readonly spellcheck="false"></textarea>
-        <div class="err" id="oErr"></div>
-        <div class="row"><button class="btn primary" id="oCopy" type="button">复制分享码</button>${canLink ? '<button class="btn" id="oLink" type="button">复制链接</button>' : ''}<button class="btn" id="oBack" type="button">关闭</button></div></div></div>`);
-      const ta = $('oCode'); ta.value = code;
-      const copy = (text, btn) => {
-        const done = () => { btn.textContent = '已复制'; setTimeout(() => { btn.textContent = btn.id === 'oCopy' ? '复制分享码' : '复制链接'; }, 1600); };
-        const fallback = () => { ta.value = text; ta.focus(); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch (e) { } if (ok) done(); else $('oErr').textContent = '已选中，请按 Ctrl+C（或长按）复制'; };
-        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
-      };
-      $('oCopy').onclick = () => copy(code, $('oCopy'));
-      if ($('oLink')) $('oLink').onclick = () => copy(`${location.origin}${location.pathname}#${code}`, $('oLink'));
-      $('oBack').onclick = () => this.game.hideOverlay();
-      ta.focus({ preventScroll: true }); ta.select();
     },
     // ---------------------------------------------------------------- render
     render(t) {
